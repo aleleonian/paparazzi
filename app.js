@@ -14,6 +14,8 @@ main();
 
 async function main() {
   bot = new XBot();
+  let savedLastTweetUrlPath;
+
   const response = await bot.init();
   if (!response.success) {
     return exitApp(response.errorMessage, -1);
@@ -21,7 +23,7 @@ async function main() {
   await bot.goto(DESIRED_URL);
   await bot.wait(5000);
 
-  const tweets = await bot.selectMultipleElements(
+  let tweets = await bot.selectMultipleElements(
     "cellInnerDiv",
     process.env.TWEET_SELECTOR,
     10000
@@ -42,6 +44,30 @@ async function main() {
     return exitApp("Are you sure that username is correct?", -1);
   } else {
     console.log("username->", username);
+  }
+
+  savedLastTweetUrlPath = bot.getTweetUrlPath(firstTweet);
+
+  while (true) {
+    console.log("Waiting 5 seconds...");
+
+    await bot.wait(5000);
+
+    tweets = await bot.selectMultipleElements(
+      "cellInnerDiv",
+      process.env.TWEET_SELECTOR,
+      5000
+    );
+
+    const firstTweet = await tweets[0].evaluate((div) => div.outerHTML);
+
+    const lastTweetUrlPath = bot.getTweetUrlPath(firstTweet);
+
+    if (savedLastTweetUrlPath === lastTweetUrlPath) {
+      console.log("Tweet's the same, will keep you posted.");
+    } else {
+      console.log("Tweet's different, gotta take the picture!");
+    }
   }
 
   return exitApp();
