@@ -1,7 +1,7 @@
 import { XBot } from "xbot-js";
 
 const DESIRED_USERNAME = process.argv[2];
-let bot;
+let xbot;
 
 if (!DESIRED_USERNAME) {
   console.log("We need a X username, buddy!");
@@ -13,17 +13,28 @@ const DESIRED_URL = `https://x.com/${DESIRED_USERNAME}`;
 main();
 
 async function main() {
-  bot = new XBot();
+  xbot = new XBot();
   let savedLastTweetUrlPath;
 
-  const response = await bot.init();
-  if (!response.success) {
-    return exitApp(response.errorMessage, -1);
+  let initResponse = await xbot.init();
+  if (!initResponse.success) {
+    return exitApp(initResponse.errorMessage, -1);
   }
-  await bot.goto(DESIRED_URL);
-  await bot.wait(5000);
 
-  let tweets = await bot.selectMultipleElements(
+  const loginResponse = await xbot.loginToX(
+    "overHelloBot",
+    "Latigazo2023!",
+    "overhello@latigo.com.ar"
+  );
+
+  if (!loginResponse.success) {
+    return exitApp(loginResponse.errorMessage, -1);
+  }
+
+  await xbot.goto(DESIRED_URL);
+  await xbot.wait(5000);
+
+  let tweets = await xbot.selectMultipleElements(
     "cellInnerDiv",
     process.env.TWEET_SELECTOR,
     10000
@@ -32,13 +43,13 @@ async function main() {
   console.log("tweets->", JSON.stringify(tweets));
 
   if (!tweets?.length) {
-    if (await bot.findTextInPage("This account doesn’t exist")) {
+    if (await xbot.findTextInPage("This account doesn’t exist")) {
       return exitApp("Friend, that username does not exist", -1);
     } else return exitApp("Are you sure that username is correct?", -1);
   }
-  const firstTweet = await tweets[0].evaluate((div) => div.outerHTML);
+  const lastTweet = await tweets[0].evaluate((div) => div.outerHTML);
 
-  const username = bot.getTweetAuthor(firstTweet);
+  const username = xbot.getTweetAuthor(lastTweet);
 
   if (username !== DESIRED_USERNAME) {
     return exitApp("Are you sure that username is correct?", -1);
@@ -46,27 +57,31 @@ async function main() {
     console.log("username->", username);
   }
 
-  savedLastTweetUrlPath = bot.getTweetUrlPath(firstTweet);
+  savedLastTweetUrlPath = xbot.getTweetUrlPath(lastTweet);
 
   while (true) {
-    console.log("Waiting 5 seconds...");
-
-    await bot.wait(5000);
-
-    tweets = await bot.selectMultipleElements(
+    console.log("gonna reload...");
+    await xbot.reloadPage();
+    tweets = await xbot.selectMultipleElements(
       "cellInnerDiv",
       process.env.TWEET_SELECTOR,
       5000
     );
-
-    const firstTweet = await tweets[0].evaluate((div) => div.outerHTML);
-
-    const lastTweetUrlPath = bot.getTweetUrlPath(firstTweet);
-
+    const lastTweet = await tweets[0].evaluate((div) => div.outerHTML);
+    const lastTweetUrlPath = xbot.getTweetUrlPath(lastTweet);
+    console.log("savedLastTweetUrlPath->", savedLastTweetUrlPath);
+    console.log("lastTweetUrlPath->", lastTweetUrlPath);
     if (savedLastTweetUrlPath === lastTweetUrlPath) {
       console.log("Tweet's the same, will keep you posted.");
     } else {
       console.log("Tweet's different, gotta take the picture!");
+      const tweetId = xbot.getTweetId(lastTweet);
+      console.log("tweetId->", tweetId);
+      savedLastTweetUrlPath = lastTweetUrlPath;
+      if (tweetId) {
+        const snapshotResponse = await xbot.takeSnapshotOfTweet(tweetId);
+        console.log("snapshotResponse->", snapshotResponse);
+      }
     }
   }
 
@@ -75,8 +90,8 @@ async function main() {
 
 async function exitApp(message, exitCode = 0) {
   try {
-    if (bot) {
-      await bot.closeBrowser();
+    if (xbot) {
+      await xbot.closeBrowser();
     }
   } catch (error) {
     console.error("🔴 Error closing browser:", error);

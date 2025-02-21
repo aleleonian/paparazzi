@@ -1,0 +1,12 @@
+* get last tweet
+
+* wait 5 seconds
+
+* get the last tweet
+
+* same tweet? -> wait loop ends
+
+* different tweet? -> take picture and store it
+    * need to notify? -> send email
+
+    
